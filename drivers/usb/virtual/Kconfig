@@ -1,0 +1,24 @@
+#
+# USB virtual devices
+#
+
+menuconfig VIRTUAL_USB
+	   tristate "Virtual USB support"
+	   help 
+	   	Menu for virtual udc
+
+if VIRTUAL_USB
+
+ # Framework for virtual
+config VIRTUAL_USB_FW
+       tristate "Framework for virtual USB devices (DEVELOPMENT)"
+       depends on USB=y || (USB=m && USB_GADGET=m)
+       help
+	Just a framework
+
+config VIRTUAL_UDC_AND_HCD
+       depends on VIRTUAL_USB_FW
+       tristate "hcd and udc temporary in one"
+
+endif # VIRTUAL_USB
+

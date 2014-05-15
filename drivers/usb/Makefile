@@ -57,5 +57,5 @@ obj-$(CONFIG_USB_MUSB_HDRC)	+= musb/
 obj-$(CONFIG_USB_CHIPIDEA)	+= chipidea/
 obj-$(CONFIG_USB_RENESAS_USBHS)	+= renesas_usbhs/
 obj-$(CONFIG_USB_GADGET)	+= gadget/
-
+obj-$(CONFIG_VIRTUAL_USB)	+= virtual/
 obj-$(CONFIG_USB_COMMON)	+= usb-common.o
