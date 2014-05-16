@@ -29,6 +29,9 @@
 #include <linux/usb.h>
 #include <linux/usb/hcd.h>
 
+
+
+
 struct virtual_usb_hcd_driver {
 	const char *name;
 	struct module *module;

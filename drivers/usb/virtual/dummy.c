@@ -17,6 +17,44 @@
 
 #include <linux/usb/dummy_usb.h>
 
+/*-------------------------------------------------------------------------*/
+
+/*
+ * Every device has ep0 for control requests, plus up to 30 more endpoints,
+ * in one of two types:
+ *
+ *   - Configurable:  direction (in/out), type (bulk, iso, etc), and endpoint
+ *     number can be changed.  Names like "ep-a" are used for this type.
+ *
+ *   - Fixed Function:  in other cases.  some characteristics may be mutable;
+ *     that'd be hardware-specific.  Names like "ep12out-bulk" are used.
+ *
+ * Gadget drivers are responsible for not setting up conflicting endpoint
+ * configurations, illegal or unsupported packet lengths, and so on.
+ */
+
+const char ep0name[] = "ep0";
+
+const char *const ep_name[] = {
+	ep0name,				/* everyone has ep0 */
+
+	/* act like a pxa250: fifteen fixed function endpoints */
+	"ep1in-bulk", "ep2out-bulk", "ep3in-iso", "ep4out-iso", "ep5in-int",
+	"ep6in-bulk", "ep7out-bulk", "ep8in-iso", "ep9out-iso", "ep10in-int",
+	"ep11in-bulk", "ep12out-bulk", "ep13in-iso", "ep14out-iso",
+		"ep15in-int",
+
+	/* or like sa1100: two fixed function endpoints */
+	"ep1out-bulk", "ep2in-bulk",
+
+	/* and now some generic EPs so we have enough in multi config */
+	"ep3out", "ep4in", "ep5out", "ep6out", "ep7in", "ep8out", "ep9in",
+	"ep10out", "ep11out", "ep12in", "ep13out", "ep14in", "ep15out",
+};
+
+
+
+/*------------------------------------------------------------------------*/
 static LIST_HEAD(hcd_drv_list);
 static DEFINE_MUTEX(hcd_drv_lock);
 
