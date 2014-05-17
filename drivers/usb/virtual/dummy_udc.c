@@ -1,3 +1,42 @@
+#include <linux/module.h>
+#include <linux/kernel.h>
+#include <linux/platform_device.h>
+
+
+#include <linux/usb/dummy_hcd.h>
+
+
+
+#define DRIVER_DESC	"USB UDC Emulator"
+#define DRIVER_VERSION	"16 May 2014"
+
+#define POWER_BUDGET	500	/* in mA; use 8 for low-power port testing */
+
+static const char	driver_desc[] = DRIVER_DESC;
+
+MODULE_DESCRIPTION(DRIVER_DESC);
+MODULE_AUTHOR("David Brownell, Krzysztof Opasiak");
+MODULE_LICENSE("GPL");
+
+struct dummy_hcd_module_parameters {
+	bool is_super_speed;
+	bool is_high_speed;
+	unsigned int num;
+};
+
+static struct dummy_hcd_module_parameters mod_data = {
+	.is_super_speed = false,
+	.is_high_speed = true,
+	.num = 1,
+};
+module_param_named(is_super_speed, mod_data.is_super_speed, bool, S_IRUGO);
+MODULE_PARM_DESC(is_super_speed, "true to simulate SuperSpeed connection");
+module_param_named(is_high_speed, mod_data.is_high_speed, bool, S_IRUGO);
+MODULE_PARM_DESC(is_high_speed, "true to simulate HighSpeed connection");
+module_param_named(num, mod_data.num, uint, S_IRUGO);
+MODULE_PARM_DESC(num, "number of emulated controllers");
+/*-------------------------------------------------------------------------*/
+
 /* SLAVE/GADGET SIDE UTILITY ROUTINES */
 
 /* called with spinlock held */
@@ -102,7 +141,7 @@ static void set_link_state_by_speed(struct dummy_hcd *dum_hcd)
 }
 
 /* caller must hold lock */
-static void set_link_state(struct dummy_hcd *dum_hcd)
+void set_link_state(struct dummy_hcd *dum_hcd)
 {
 	struct dummy *dum = dum_hcd->dum;
 
@@ -150,6 +189,7 @@ static void set_link_state(struct dummy_hcd *dum_hcd)
 	dum_hcd->old_status = dum_hcd->port_status;
 	dum_hcd->old_active = dum_hcd->active;
 }
+EXPORT_SYMBOL(set_link_state);
 
 /*-------------------------------------------------------------------------*/
 
@@ -519,13 +559,14 @@ static const struct usb_ep_ops dummy_ep_ops = {
 /*-------------------------------------------------------------------------*/
 
 /* there are both host and device side versions of this call ... */
-static int dummy_g_get_frame(struct usb_gadget *_gadget)
+int dummy_g_get_frame(struct usb_gadget *_gadget)
 {
 	struct timeval	tv;
 
 	do_gettimeofday(&tv);
 	return tv.tv_usec / 1000;
 }
+EXPORT_SYMBOL(dummy_g_get_frame);
 
 static int dummy_wakeup(struct usb_gadget *_gadget)
 {
@@ -802,3 +843,25 @@ static struct platform_driver dummy_udc_driver = {
 };
 
 /*-------------------------------------------------------------------------*/
+
+static int __init init(void)
+{
+	int ret = -ENODEV;
+
+	if (usb_disabled())
+		return ret;
+
+	if (!mod_data.is_high_speed && mod_data.is_super_speed)
+		return -EINVAL;
+
+	ret = platform_driver_register(&dummy_udc_driver);
+
+	return ret;
+}
+module_init(init);
+
+static void __exit cleanup(void)
+{
+	platform_driver_unregister(&dummy_udc_driver);
+}
+module_exit(cleanup);

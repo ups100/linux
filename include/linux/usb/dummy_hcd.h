@@ -1,7 +1,19 @@
 #ifndef __LINUX_USB_DUMMY_HCD_H
 #define __LINUX_USB_DUMMY_HCD_H
 
+#include <linux/platform_device.h>
+#include <linux/usb.h>
+#include <linux/usb/gadget.h>
+#include <linux/usb/hcd.h>
+#include <linux/scatterlist.h>
+
+#include <linux/list.h>
+
 /* ========================przeniesiono ============*/
+
+static const char	gadget_name[] = "dummy_udc";
+
+static const char	driver_name[] = "dummy_hcd";
 
 /* gadget side driver data structres */
 struct dummy_ep {
@@ -33,9 +45,24 @@ inline struct dummy_request *usb_request_to_dummy_request
 	return container_of(_req, struct dummy_request, req);
 }
 
-const char ep0name[];
+static const char ep0name[] = "ep0";
 
-const char *const ep_name[];
+static const char *const ep_name[] = {
+	ep0name,				/* everyone has ep0 */
+
+	/* act like a pxa250: fifteen fixed function endpoints */
+	"ep1in-bulk", "ep2out-bulk", "ep3in-iso", "ep4out-iso", "ep5in-int",
+	"ep6in-bulk", "ep7out-bulk", "ep8in-iso", "ep9out-iso", "ep10in-int",
+	"ep11in-bulk", "ep12out-bulk", "ep13in-iso", "ep14out-iso",
+		"ep15in-int",
+
+	/* or like sa1100: two fixed function endpoints */
+	"ep1out-bulk", "ep2in-bulk",
+
+	/* and now some generic EPs so we have enough in multi config */
+	"ep3out", "ep4in", "ep5out", "ep6out", "ep7in", "ep8out", "ep9in",
+	"ep10out", "ep11out", "ep12in", "ep13out", "ep14in", "ep15out",
+};
 
 #define DUMMY_ENDPOINTS	ARRAY_SIZE(ep_name)
 
@@ -138,5 +165,7 @@ inline struct dummy *gadget_dev_to_dummy(struct device *dev)
 }
 
 /*-------------------------------------------------------------------------*/
+void set_link_state(struct dummy_hcd *dum_hcd);
+int dummy_g_get_frame(struct usb_gadget *_gadget);
 
 #endif
