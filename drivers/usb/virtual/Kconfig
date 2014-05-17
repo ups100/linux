@@ -31,5 +31,8 @@ config VIRTUAL_USB_DEVICES
        tristate "Register virtual devices"
        depends on ((VIRTUAL_USB_UDC=y || VIRTUAL_USB_UDC=m) && (VIRTUAL_USB_HCD=y || VIRTUAL_USB_HCD=m))
 
+config VIRTUAL_USB_CONFIGFS
+       tristate "Virtual USB devices configurable through ConfigFS"
+
 endif # VIRTUAL_USB
 
