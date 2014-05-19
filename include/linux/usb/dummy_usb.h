@@ -30,8 +30,6 @@
 #include <linux/usb/hcd.h>
 
 
-
-
 struct virtual_usb_hcd_driver {
 	const char *name;
 	struct module *module;
@@ -97,6 +95,8 @@ void virtual_usb_put_udc(struct virtual_usb_udc *u);
 
 /* Add copy of data to store */
 int virtual_usb_udc_add_data(struct virtual_usb_udc *u, const void *data, size_t size);
+/* Get stored data */
+void *virtual_usb_udc_get_data(struct virtual_usb_udc *u);
 
 /* Create new device or remove existing */
 int virtual_usb_add_udc(struct virtual_usb_udc *u);

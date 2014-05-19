@@ -762,20 +762,20 @@ static void init_dummy_udc_hw(struct dummy *dum)
 #endif
 }
 
-static int dummy_udc_probe(struct platform_device *pdev)
+static int dummy_udc_probe(struct virtual_usb_udc *udc)
 {
 	struct dummy	*dum;
 	int		rc;
 
-	dum = *((void **)dev_get_platdata(&pdev->dev));
-	dum->gadget.name = gadget_name;
+	dum = *((void **)virtual_usb_udc_get_data(udc));
+	dum->gadget.name = udc->name;
 	dum->gadget.ops = &dummy_ops;
 	dum->gadget.max_speed = USB_SPEED_SUPER;
 
-	dum->gadget.dev.parent = &pdev->dev;
+	dum->gadget.dev.parent = udc->udc_dev->dev;
 	init_dummy_udc_hw(dum);
 
-	rc = usb_add_gadget_udc(&pdev->dev, &dum->gadget);
+	rc = usb_add_gadget_udc(&udc->udc_dev->dev, &dum->gadget);
 	if (rc < 0)
 		goto err_udc;
 
@@ -842,6 +842,20 @@ static struct platform_driver dummy_udc_driver = {
 	},
 };
 
+static struct virtual_usb_udc_driver dummy_udc_driver = {
+	.name = "dummy_udc",
+	.module = THIS_MODULE,
+	
+	.probe = dummy_udc_probe,
+	.remove = dummy_udc_remove,
+
+/* This is a hack and should be removed */
+	.driver = {
+		.suspend = dummy_udc_suspend,
+		.resume = dummy_udc_resume,
+	},
+};
+
 /*-------------------------------------------------------------------------*/
 
 static int __init init(void)
@@ -854,14 +868,13 @@ static int __init init(void)
 	if (!mod_data.is_high_speed && mod_data.is_super_speed)
 		return -EINVAL;
 
-	ret = platform_driver_register(&dummy_udc_driver);
-
+	ret = virtual_usb_udc_register(&dummy_udc_driver);
 	return ret;
 }
 module_init(init);
 
 static void __exit cleanup(void)
 {
-	platform_driver_unregister(&dummy_udc_driver);
+	virtual_usb_udc_unregister(&dummy_udc_driver);
 }
 module_exit(cleanup);
