@@ -38,7 +38,7 @@ static int __init init(void)
 {
 	int	retval = -ENOMEM;
 	int	i;
-	struct	dummy *dum[MAX_NUM_UDC];
+	struct	dummy_link *dum[MAX_NUM_UDC];
 
 	if (usb_disabled())
 		return -ENODEV;
@@ -71,7 +71,7 @@ static int __init init(void)
 		}
 	}
 	for (i = 0; i < mod_data.num; i++) {
-		dum[i] = kzalloc(sizeof(struct dummy), GFP_KERNEL);
+		dum[i] = kzalloc(sizeof(struct dummy_link), GFP_KERNEL);
 		if (!dum[i]) {
 			retval = -ENOMEM;
 			goto err_add_pdata;
@@ -96,8 +96,7 @@ static int __init init(void)
 		}
 	}
 	for (i = 0; i < mod_data.num; i++) {
-		if (!dum[i]->hs_hcd ||
-				(!dum[i]->ss_hcd && mod_data.is_super_speed)) {
+		if (!dum[i]->host)) {
 			/*
 			 * The hcd was added successfully but its probe
 			 * function failed for some reason.
@@ -153,7 +152,7 @@ static void __exit cleanup(void)
 	int i;
 
 	for (i = 0; i < mod_data.num; i++) {
-		struct dummy *dum;
+		struct dummy_link *dum;
 
 		dum = *((void **)dev_get_platdata(&the_udc_pdev[i]->dev));
 

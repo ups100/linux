@@ -85,7 +85,7 @@ enum dummy_rh_state {
 };
 
 struct dummy_hcd {
-	struct dummy			*dum;
+	struct dummy_link		*link;
 	enum dummy_rh_state		rh_state;
 	struct timer_list		timer;
 	u32				port_status;
@@ -101,14 +101,14 @@ struct dummy_hcd {
 	unsigned			old_active:1;
 	unsigned			resuming:1;
 };
-
+/*
 struct dummy {
 	spinlock_t			lock;
 
 	/*
 	 * SLAVE/GADGET side support
 	 */
-	struct dummy_ep			ep[DUMMY_ENDPOINTS];
+/*	struct dummy_ep			ep[DUMMY_ENDPOINTS];
 	int				address;
 	struct usb_gadget		gadget;
 	struct usb_gadget_driver	*driver;
@@ -121,8 +121,30 @@ struct dummy {
 	/*
 	 * MASTER/HOST side support
 	 */
-	struct dummy_hcd		*hs_hcd;
+/*	struct dummy_hcd		*hs_hcd;
 	struct dummy_hcd		*ss_hcd;
+	}*/
+
+struct dummy_link;
+
+struct dummy_udc {
+	struct dummy_ep[DUMMY_ENDPOINTS];
+	struct usb_gadget gadget;
+	struct usb_gadget_driver *driver;
+	struct dummy_request fifo_req;
+	u8 fifo_buf[FIFO_SIZE];
+	u16 devstatus;
+	unsigned suspended:1;
+	unsigned pullup:1;
+	struct dummy_link *link;
+};
+
+struct dummy_link {
+	spinlock_t lock;
+	int address;
+	struct dummy_udc *device;
+	struct dummy_hcd *host;
+	struct dummy_hcd *host2;
 };
 
 inline struct dummy_hcd *hcd_to_dummy_hcd(struct usb_hcd *hcd)
@@ -145,9 +167,9 @@ inline struct device *udc_dev(struct dummy *dum)
 	return dum->gadget.dev.parent;
 }
 
-inline struct dummy *ep_to_dummy(struct dummy_ep *ep)
+inline struct dummy_link *ep_to_dummy(struct dummy_ep *ep)
 {
-	return container_of(ep->gadget, struct dummy, gadget);
+	return container_of(ep->gadget, struct dummy_udc, gadget)->link;
 }
 
 inline struct dummy_hcd *gadget_to_dummy_hcd(struct usb_gadget *gadget)
@@ -159,9 +181,9 @@ inline struct dummy_hcd *gadget_to_dummy_hcd(struct usb_gadget *gadget)
 		return dum->hs_hcd;
 }
 
-inline struct dummy *gadget_dev_to_dummy(struct device *dev)
+inline struct dummy_link *gadget_dev_to_dummy(struct device *dev)
 {
-	return container_of(dev, struct dummy, gadget.dev);
+	return container_of(dev, struct dummy_udc, gadget.dev)->link;
 }
 
 /*-------------------------------------------------------------------------*/
