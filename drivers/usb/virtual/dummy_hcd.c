@@ -271,7 +271,7 @@ static int dummy_perform_transfer(struct urb *urb, struct dummy_request *req,
 static int transfer(struct dummy_hcd *dum_hcd, struct urb *urb,
 		struct dummy_ep *ep, int limit, int *status)
 {
-	struct dummy		*dum = dum_hcd->dum;
+	struct dummy_link	*dum = dum_hcd->link;
 	struct dummy_request	*req;
 
 top:
@@ -434,7 +434,7 @@ static struct dummy_ep *find_endpoint(struct dummy_link *dum, u8 address)
 			 dum->host : dum->host2)))
 		return NULL;
 	if ((address & ~USB_DIR_IN) == 0)
-		return &dum->ep[0];
+		return &dum->device->ep[0];
 	for (i = 1; i < DUMMY_ENDPOINTS; i++) {
 		struct dummy_ep	*ep = &dum->device->ep[i];
 
@@ -473,7 +473,8 @@ static int handle_control_request(struct dummy_hcd *dum_hcd, struct urb *urb,
 				  int *status)
 {
 	struct dummy_ep		*ep2;
-	struct dummy		*dum = dum_hcd->dum;
+	struct dummy_link	*dum = dum_hcd->link;
+	struct dummy_udc        *dum_udc = dum->device;
 	int			ret_val = 1;
 	unsigned	w_index;
 	unsigned	w_value;
@@ -498,13 +499,13 @@ static int handle_control_request(struct dummy_hcd *dum_hcd, struct urb *urb,
 			case USB_DEVICE_REMOTE_WAKEUP:
 				break;
 			case USB_DEVICE_B_HNP_ENABLE:
-				dum->device->gadget.b_hnp_enable = 1;
+				dum_udc->gadget.b_hnp_enable = 1;
 				break;
 			case USB_DEVICE_A_HNP_SUPPORT:
-				dum->device->gadget.a_hnp_support = 1;
+				dum_udc->gadget.a_hnp_support = 1;
 				break;
 			case USB_DEVICE_A_ALT_HNP_SUPPORT:
-				dum->device->gadget.a_alt_hnp_support = 1;
+				dum_udc->gadget.a_alt_hnp_support = 1;
 				break;
 			case USB_DEVICE_U1_ENABLE:
 				if (dummy_hcd_to_hcd(dum_hcd)->speed ==
@@ -531,7 +532,7 @@ static int handle_control_request(struct dummy_hcd *dum_hcd, struct urb *urb,
 				ret_val = -EOPNOTSUPP;
 			}
 			if (ret_val == 0) {
-				dum->device->devstatus |= (1 << w_value);
+				dum_udc->devstatus |= (1 << w_value);
 				*status = 0;
 			}
 		} else if (setup->bRequestType == Ep_Request) {
@@ -580,7 +581,7 @@ static int handle_control_request(struct dummy_hcd *dum_hcd, struct urb *urb,
 				break;
 			}
 			if (ret_val == 0) {
-				dum->device->devstatus &= ~(1 << w_value);
+				dum_udc->devstatus &= ~(1 << w_value);
 				*status = 0;
 			}
 		} else if (setup->bRequestType == Ep_Request) {
@@ -617,7 +618,7 @@ static int handle_control_request(struct dummy_hcd *dum_hcd, struct urb *urb,
 					buf[0] = ep2->halted;
 				} else if (setup->bRequestType ==
 					   Dev_InRequest) {
-					buf[0] = (u8)dum->device->devstatus;
+					buf[0] = (u8)dum_udc->devstatus;
 				} else
 					buf[0] = 0;
 			}
@@ -640,14 +641,15 @@ static void dummy_timer(unsigned long _dum_hcd)
 {
 	struct dummy_hcd	*dum_hcd = (struct dummy_hcd *) _dum_hcd;
 	struct dummy_link	*dum = dum_hcd->link;
-	struct urbp		*urbp, *tmp;
+	struct dummy_udc        *dum_udc = dum->device;
+ 	struct urbp		*urbp, *tmp;
 	unsigned long		flags;
 	int			limit, total;
 	int			i;
 
 	/* simplistic model for one frame's bandwidth */
 	/* TODO avoid direct getting of device data */
-	switch (dum->device->gadget.speed) {
+	switch (dum_udc->gadget.speed) {
 	case USB_SPEED_LOW:
 		total = 8/*bytes*/ * 12/*packets*/;
 		break;
@@ -682,7 +684,7 @@ static void dummy_timer(unsigned long _dum_hcd)
 	for (i = 0; i < DUMMY_ENDPOINTS; i++) {
 		if (!ep_name[i])
 			break;
-		dum->device->ep[i].already_seen = 0;
+		dum_udc->ep[i].already_seen = 0;
 	}
 
 restart:
@@ -725,7 +727,7 @@ restart:
 		if (ep->already_seen)
 			continue;
 		ep->already_seen = 1;
-		if (ep == &dum->device->ep[0] && urb->error_count) {
+		if (ep == &dum_udc->ep[0] && urb->error_count) {
 			ep->setup_stage = 1;	/* a new urb */
 			urb->error_count = 0;
 		}
@@ -739,7 +741,7 @@ restart:
 		/* FIXME make sure both ends agree on maxpacket */
 
 		/* handle control requests */
-		if (ep == &dum->device->ep[0] && ep->setup_stage) {
+		if (ep == &dum_udc->ep[0] && ep->setup_stage) {
 			struct usb_ctrlrequest		setup;
 			int				value = 1;
 
@@ -775,7 +777,7 @@ restart:
 			if (value > 0) {
 				spin_unlock(&dum->lock);
 				/* TODO avoid getting directly to device */
-				value = dum->device->driver->setup(&dum->gadget,
+				value = dum_udc->driver->setup(&dum_udc->gadget,
 						&setup);
 				spin_lock(&dum->lock);
 
@@ -948,6 +950,8 @@ static int dummy_hub_control(
 	u16		wLength
 ) {
 	struct dummy_hcd *dum_hcd;
+	struct dummy_link *dum;
+	struct dummy_udc  *dum_udc;
 	int		retval = 0;
 	unsigned long	flags;
 
@@ -955,8 +959,10 @@ static int dummy_hub_control(
 		return -ETIMEDOUT;
 
 	dum_hcd = hcd_to_dummy_hcd(hcd);
+	dum = dum_hcd->link;
+	dum_udc = dum->device;
 
-	spin_lock_irqsave(&dum_hcd->link->lock, flags);
+	spin_lock_irqsave(&dum->lock, flags);
 	switch (typeReq) {
 	case ClearHubFeature:
 		break;
@@ -1038,24 +1044,24 @@ static int dummy_hub_control(
 			dum_hcd->port_status |= (USB_PORT_STAT_C_RESET << 16);
 			dum_hcd->port_status &= ~USB_PORT_STAT_RESET;
 			/* TODO avoid direct getting device data */
-			if (dum_hcd->device->pullup) {
+			if (dum_udc->pullup) {
 				dum_hcd->port_status |= USB_PORT_STAT_ENABLE;
 
 				if (hcd->speed < HCD_USB3) {
 					/* TODO Also here avoid this */
-					switch (dum_hcd->dum->gadget.speed) {
+					switch (dum_udc->gadget.speed) {
 					case USB_SPEED_HIGH:
 						dum_hcd->port_status |=
 						      USB_PORT_STAT_HIGH_SPEED;
 						break;
 					case USB_SPEED_LOW:
-						dum_hcd->dum->gadget.ep0->
+						dum_udc->gadget.ep0->
 							maxpacket = 8;
 						dum_hcd->port_status |=
 							USB_PORT_STAT_LOW_SPEED;
 						break;
 					default:
-						dum_hcd->dum->gadget.speed =
+						dum_udc->gadget.speed =
 							USB_SPEED_FULL;
 						break;
 					}
@@ -1110,7 +1116,7 @@ static int dummy_hub_control(
 				set_link_state(dum_hcd);
 				/* TODO avoid getting data from device structure */
 				if (((1 << USB_DEVICE_B_HNP_ENABLE)
-						& dum_hcd->link->device->devstatus) != 0)
+						&dum_udc->devstatus) != 0)
 					dev_dbg(dummy_dev(dum_hcd),
 							"no HNP yet!\n");
 			}
@@ -1148,8 +1154,8 @@ static int dummy_hub_control(
 			 * Self powered feature
 			 */
 			/* TODO avoid getting direct access to device */
-			dum_hcd->link->device->devstatus &=
-				(1 << USB_DEVICE_SELF_POWERED);
+			dum_udc->devstatus &= (1 << USB_DEVICE_SELF_POWERED);
+
 			/*
 			 * FIXME USB3.0: what is the correct reset signaling
 			 * interval? Is it still 50msec as for HS?
@@ -1197,7 +1203,7 @@ error:
 		/* "protocol stall" on error */
 		retval = -EPIPE;
 	}
-	spin_unlock_irqrestore(&dum_hcd->link->lock, flags);
+	spin_unlock_irqrestore(&dum->lock, flags);
 
 	if ((dum_hcd->port_status & PORT_C_MASK) != 0)
 		usb_hcd_poll_rh_status(hcd);
@@ -1294,7 +1300,7 @@ static ssize_t urbs_show(struct device *dev, struct device_attribute *attr,
 	size_t			size = 0;
 	unsigned long		flags;
 
-	spin_lock_irqsave(&dum_hcd->dum->lock, flags);
+	spin_lock_irqsave(&dum_hcd->link->lock, flags);
 	list_for_each_entry(urbp, &dum_hcd->urbp_list, urbp_list) {
 		size_t		temp;
 
@@ -1302,7 +1308,7 @@ static ssize_t urbs_show(struct device *dev, struct device_attribute *attr,
 		buf += temp;
 		size += temp;
 	}
-	spin_unlock_irqrestore(&dum_hcd->dum->lock, flags);
+	spin_unlock_irqrestore(&dum_hcd->link->lock, flags);
 
 	return size;
 }
@@ -1398,7 +1404,7 @@ static int dummy_setup(struct usb_hcd *hcd)
 		/* We set host field allways to higest speed hcd */
 		dum->host2 = dum->host;
 		dum->host = hcd_to_dummy_hcd(hcd);
-		dum->host->dum = dum;
+		dum->host->link = dum;
 		hcd->speed = HCD_USB3;
 		hcd->self.root_hub->speed = USB_SPEED_SUPER;
 	}
@@ -1558,7 +1564,7 @@ static int dummy_hcd_remove(struct platform_device *pdev)
 {
 	struct dummy_link	*dum;
 
-	dum = hcd_to_dummy_hcd(platform_get_drvdata(pdev))->dum;
+	dum = hcd_to_dummy_hcd(platform_get_drvdata(pdev))->link;
 
 	if (dum->host2) {
 		usb_remove_hcd(dummy_hcd_to_hcd(dum->host));

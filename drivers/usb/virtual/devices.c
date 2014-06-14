@@ -51,25 +51,25 @@ static int __init init(void)
 				MAX_NUM_UDC);
 		return -EINVAL;
 	}
-
-	for (i = 0; i < mod_data.num; i++) {
-		the_hcd_pdev[i] = platform_device_alloc(driver_name, i);
-		if (!the_hcd_pdev[i]) {
-			i--;
-			while (i >= 0)
-				platform_device_put(the_hcd_pdev[i--]);
-			return retval;
-		}
-	}
 	for (i = 0; i < mod_data.num; i++) {
 		the_udc_pdev[i] = platform_device_alloc(gadget_name, i);
 		if (!the_udc_pdev[i]) {
 			i--;
 			while (i >= 0)
 				platform_device_put(the_udc_pdev[i--]);
-			goto err_alloc_udc;
+			return retval;
 		}
 	}
+	for (i = 0; i < mod_data.num; i++) {
+		the_hcd_pdev[i] = platform_device_alloc(driver_name, i);
+		if (!the_hcd_pdev[i]) {
+			i--;
+			while (i >= 0)
+				platform_device_put(the_hcd_pdev[i--]);
+			goto err_alloc_hcd;
+		}
+	}
+	
 	for (i = 0; i < mod_data.num; i++) {
 		dum[i] = kzalloc(sizeof(struct dummy_link), GFP_KERNEL);
 		if (!dum[i]) {
@@ -85,27 +85,6 @@ static int __init init(void)
 		if (retval)
 			goto err_add_pdata;
 	}
-
-	for (i = 0; i < mod_data.num; i++) {
-		retval = platform_device_add(the_hcd_pdev[i]);
-		if (retval < 0) {
-			i--;
-			while (i >= 0)
-				platform_device_del(the_hcd_pdev[i--]);
-			goto err_add_hcd;
-		}
-	}
-	for (i = 0; i < mod_data.num; i++) {
-		if (!dum[i]->host)) {
-			/*
-			 * The hcd was added successfully but its probe
-			 * function failed for some reason.
-			 */
-			retval = -EINVAL;
-			goto err_add_udc;
-		}
-	}
-
 	for (i = 0; i < mod_data.num; i++) {
 		retval = platform_device_add(the_udc_pdev[i]);
 		if (retval < 0) {
@@ -123,26 +102,47 @@ static int __init init(void)
 			 * function failed for some reason.
 			 */
 			retval = -EINVAL;
-			goto err_probe_udc;
+			goto err_add_hcd;
 		}
 	}
+
+	for (i = 0; i < mod_data.num; i++) {
+		retval = platform_device_add(the_hcd_pdev[i]);
+		if (retval < 0) {
+			i--;
+			while (i >= 0)
+				platform_device_del(the_hcd_pdev[i--]);
+			goto err_add_hcd;
+		}
+	}
+	for (i = 0; i < mod_data.num; i++) {
+		if (!dum[i]->host) {
+			/*
+			 * The hcd was added successfully but its probe
+			 * function failed for some reason.
+			 */
+			retval = -EINVAL;
+			goto err_probe_hcd;
+		}
+	}
+
 	return retval;
 
-err_probe_udc:
-	for (i = 0; i < mod_data.num; i++)
-		platform_device_del(the_udc_pdev[i]);
-err_add_udc:
+err_probe_hcd:
 	for (i = 0; i < mod_data.num; i++)
 		platform_device_del(the_hcd_pdev[i]);
 err_add_hcd:
+	for (i = 0; i < mod_data.num; i++)
+		platform_device_del(the_udc_pdev[i]);
+err_add_udc:
 err_add_pdata:
 	for (i = 0; i < mod_data.num; i++)
 		kfree(dum[i]);
 	for (i = 0; i < mod_data.num; i++)
-		platform_device_put(the_udc_pdev[i]);
-err_alloc_udc:
-	for (i = 0; i < mod_data.num; i++)
 		platform_device_put(the_hcd_pdev[i]);
+err_alloc_hcd:
+	for (i = 0; i < mod_data.num; i++)
+		platform_device_put(the_udc_pdev[i]);
 	return retval;
 }
 module_init(init);
