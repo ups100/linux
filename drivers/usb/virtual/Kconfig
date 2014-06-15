@@ -20,16 +20,13 @@ config VIRTUAL_UDC_AND_HCD
        depends on VIRTUAL_USB_FW
        tristate "hcd and udc temporary in one"
 
-config VIRTUAL_USB_UDC
-       tristate "Virtual UDC"
-       depends on USB=y || (USB=m && USB_GADGET=m)
-config VIRTUAL_USB_HCD
-       tristate "Virtual HCD"
+config VIRTUAL_USB_UDC_DRV
+       tristate "Virtual UDC drv"
        depends on USB=y || (USB=m && USB_GADGET=m)
 
-config VIRTUAL_USB_DEVICES
-       tristate "Register virtual devices"
-       depends on ((VIRTUAL_USB_UDC=y || VIRTUAL_USB_UDC=m) && (VIRTUAL_USB_HCD=y || VIRTUAL_USB_HCD=m))
+config VIRTUAL_USB_UDC_REG
+       tristate "Register virtual udc"
+       depends on ((VIRTUAL_USB_UDC_DRV=y || VIRTUAL_USB_UDC_DRV=m))
 
 config VIRTUAL_USB_CONFIGFS
        tristate "Virtual USB devices configurable through ConfigFS"

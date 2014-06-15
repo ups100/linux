@@ -28,8 +28,16 @@
 #include <linux/platform_device.h>
 #include <linux/usb.h>
 #include <linux/usb/hcd.h>
+#include <linux/usb/gadget.h>
 
 
+/* to mchange this structure you should own both locks */
+struct virtual_usb_link {
+	spinlock_t lock;
+	enum usb_device_speed max_speed;
+	struct virtual_usb_udc *device;
+	struct virtual_usb_hcd *host;
+};
 
 
 struct virtual_usb_hcd_driver {
@@ -55,6 +63,25 @@ struct virtual_usb_hcd {
 
 struct virtual_usb_udc;
 
+struct virtual_usb_ep {
+	struct usb_ep ep;
+	struct usb_gadget *gadget;
+	const struct usb_endpoint_descriptor *desc;
+
+	struct list_head queue;
+	unsigned long last_io; /* jiffies timestamp */
+	unsigned halted:1;
+	unsigned wedged:1;
+	unsigned already_seen:1;
+	unsigned setup_stage:1;
+	unsigned stream_en:1;
+};
+
+struct virtual_usb_request {
+	struct usb_request req;
+	struct list_head queue;
+};
+
 /*
 name - name of device driver and will be most part of devices name
  */
@@ -65,22 +92,58 @@ struct virtual_usb_udc_driver {
 
 	int (*probe)(struct virtual_usb_udc *);
 	int (*remove)(struct virtual_usb_udc *);
-
+	int (*suspend)(struct virtual_usb_udc *, pm_message_t);
+	int (*resume)(struct virtual_usb_udc *);
+	int (*connect)(struct virtual_usb_udc *, struct virtual_usb_hcd *);
 	/* Don't touch probe and remove and name */
 	struct platform_driver driver;
+	struct usb_gadget_ops g_ops;
+	/*struct usb_gadget_ops real_g_ops;*/
+	struct usb_ep_ops ep_ops;
+	/*struct usb_ep_ops real_ep_ops;*/
+
+	/* Null terminated array of names for endpoints.
+	   Name at 0 index is taken as ep0 */
+	const char **ep_name;
+	/* Number of endpoints including ep0 */
+	int ep_nmb;
+	/* Size of private data which each ep holds for this driver */
+	int ep_priv_data_size;
+	/* Function that is called to allow driver to initialize its private
+	   data per each endpoint */
+	int (*init_ep)(struct virtual_usb_ep *);
 };
+
 
 /*
 name of this hub (alias only, real name depends on driver name)
  */
 struct virtual_usb_udc {
-	
+	spinlock_t lock;
 	int id;
 	struct virtual_usb_udc_driver *udc_drv;
+	/* TODO add initialization */
+	struct list_head list;
+	enum usb_device_speed max_speed;
 
-	enum usb_device_speed speed;
 	struct platform_device *udc_dev;
 	void *data;
+
+	/* now meat is comming */
+	struct usb_gadget gadget;
+	struct usb_gadget_driver *driver;
+	/* Array of endpoints, each entry is a virtual_usb_ep
+	   + size of additional data from driver */
+	void *ep;
+	/* FIFO queue of usb requests */
+	struct virtual_usb_request fifo_req;
+
+	unsigned suspended:1;
+	unsigned pullup:1;
+	u16 devstatus;
+
+	/* connection between this udc and some hub */
+	struct virtual_usb_link *link;
 };
 
 
