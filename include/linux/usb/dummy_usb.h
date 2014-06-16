@@ -30,35 +30,74 @@
 #include <linux/usb/hcd.h>
 #include <linux/usb/gadget.h>
 
-
 /* to mchange this structure you should own both locks */
 struct virtual_usb_link {
 	spinlock_t lock;
-	enum usb_device_speed max_speed;
+	enum usb_device_speed speed;
 	struct virtual_usb_udc *device;
 	struct virtual_usb_hcd *host;
 };
 
+/* Root hub states */
+enum virtual_rh_state {
+	VIRTUAL_RH_RESET,
+	VIRTUAL_RH_SUSPENDED,
+	VIRTUAL_RH_RUNNING
+};
+
+struct virtual_usb_hcd;
+
+struct virtual_usb_hcd_instance {
+	struct virtual_usb_hcd *parent;
+	enum virtual_rh_state rh_state;
+	struct timer_list timer;
+	u32 port_status;
+	u32 old_status;
+	unsigned long re_timeout;
+
+	struct usb_device *udev;
+	struct list_head urbp_list;
+	u32 stream_en_ep;
+	u8 num_stream[30/2];
+	unsigned active:1;
+	unsigned old_active:1;
+	unsigned resuming:1;
+};
 
 struct virtual_usb_hcd_driver {
 	const char *name;
+	const char *description;
 	struct module *module;
 	struct list_head list;
 
+	int (*probe)(struct virtual_usb_hcd *);
+	int (*remove)(struct virtual_usb_hcd *);
+	int (*suspend)(struct virtual_usb_hcd *, pm_message_t);
+	int (*resume)(struct virtual_usb_hcd *);
+	int (*connect)(struct virtual_usb_udc *, struct virtual_usb_hcd *);
+	struct platform_driver driver;
 
-	struct hc_driver virtual_hcd;
-	void (*shutdown)(struct platform_device *);
-	int (*suspend)(struct platform_device *, pm_message_t state);
-	int (*resume)(struct platform_device *);
+	struct hc_driver hcd_drv;
 };
 
 struct virtual_usb_hcd {
-	const char *name;
+	spinlock_t lock;	
+	int id;
 	struct virtual_usb_hcd_driver *hcd_drv;
 	struct list_head list;
 
-	enum usb_device_speed speed;
+	enum usb_device_speed max_speed;
+	int power_budget;
 	struct platform_device *hcd_dev;
+	void *data;
+
+	struct virtual_usb_hcd_instance *hs_hcd;
+	struct virtual_usb_hcd_instance *ss_hcd;
+
+
+	/* connection between this hub and some udc */
+	struct virtual_usb_link *link;
+
 };
 
 struct virtual_usb_udc;
@@ -149,6 +188,20 @@ struct virtual_usb_udc {
 
 void virtual_usb_hcd_unregister(struct virtual_usb_hcd_driver *h);
 int virtual_usb_hcd_register(struct virtual_usb_hcd_driver *h);
+
+/* Alloc and put hcd */
+struct virtual_usb_hcd *virtual_usb_alloc_hcd(const char *driver, int id);
+void virtual_usb_put_hcd(struct virtual_usb_hcd *h);
+
+/* Add copy of data to store */
+int virtual_usb_hcd_add_data(struct virtual_usb_hcd *h, const void *data, size_t size);
+
+/* Create new device or remove existing */
+int virtual_usb_add_hcd(struct virtual_usb_hcd *h);
+void virtual_usb_rm_hcd(struct virtual_usb_hcd *h);
+
+/* In error cases */
+void virtual_usb_del_hcd(struct virtual_usb_hcd *h);
 
 /* Register/unregister driver */
 void virtual_usb_udc_unregister(struct virtual_usb_udc_driver *u);
