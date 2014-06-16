@@ -34,6 +34,6 @@ module_init(init);
 
 static void __exit cleanup(void)
 {
-	virtual_usb_del_udc(udc);
+	virtual_usb_rm_udc(udc);
 }
 module_exit(cleanup);
