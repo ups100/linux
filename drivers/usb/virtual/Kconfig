@@ -28,6 +28,14 @@ config VIRTUAL_USB_UDC_REG
        tristate "Register virtual udc"
        depends on ((VIRTUAL_USB_UDC_DRV=y || VIRTUAL_USB_UDC_DRV=m))
 
+config VIRTUAL_USB_HCD_DRV
+       tristate "Virtual HCD drv"
+       depends on USB=y || (USB=m && USB_GADGET=m)
+
+config VIRTUAL_USB_HCD_REG
+       tristate "Register virtual HCD"
+       depends on ((VIRTUAL_USB_HCD_DRV=y || VIRTUAL_USB_HCD_DRV=m))
+
 config VIRTUAL_USB_CONFIGFS
        tristate "Virtual USB devices configurable through ConfigFS"
 
