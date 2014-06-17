@@ -209,7 +209,6 @@ static struct config_group *hcds_make(struct config_group *group,
 	list_add_tail(&vh->list, &vi->hcd_list);
 	mutex_unlock(&vi->lock);
 
-	printk("Wrzucile vu z enable %d", vh->enable);
 	return &vh->group;
 }
 
@@ -387,7 +386,6 @@ static struct config_group *udcs_make(struct config_group *group,
 	list_add_tail(&vu->list, &vi->udc_list);
 	mutex_unlock(&vi->lock);
 
-	printk("Wrzucile vu z enable %d", vu->enable);
 	return &vu->group;
 }
 

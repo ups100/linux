@@ -134,7 +134,7 @@ static int virtual_hcd_setup(struct usb_hcd *hcd)
 		hcd->self.root_hub->speed = USB_SPEED_SUPER;
 		xx_hcd->parent->hs_hcd = xx_hcd;
 	}
-	printk("Setup\n");
+
 	return 0;
 }
 
@@ -741,16 +741,14 @@ static int virtual_usb_hcd_probe(struct platform_device *pdev)
 
 	if (hcd->max_speed == USB_SPEED_HIGH) {
 		drv->hcd_drv.flags = HCD_USB2;
-		printk("Hub 2.0\n)");
 	} else {
-		printk("HUB 3.0\n");
 		drv->hcd_drv.flags = HCD_USB3 | HCD_SHARED;
 	}
 
 	ret = drv->probe(hcd);
 	if (ret)
 		goto out;
-	printk("probe\n");
+
 	/* TODO potential place for configfs attr name */
 	hs_hcd = usb_create_hcd(&drv->hcd_drv, &pdev->dev, dev_name(&pdev->dev));
 	if (!hs_hcd)
@@ -761,7 +759,7 @@ static int virtual_usb_hcd_probe(struct platform_device *pdev)
 	ret = usb_add_hcd(hs_hcd, 0, 0);
 	if (ret)
 		goto put_usb2_hcd;
-	printk("probe po add\n");
+
 	/* For USB 3.0 we have to create another hcd */
 	if (hcd->max_speed == USB_SPEED_SUPER) {
 		ss_hcd = usb_create_shared_hcd(&drv->hcd_drv, &pdev->dev,
@@ -953,12 +951,8 @@ static struct virtual_usb_hcd *alloc_new_hcd(struct virtual_usb_hcd_driver *drv,
 		kfree(newh);
 		newh = ERR_PTR(ret);
 	}
-	printk(__func__);
-	if (!newh || IS_ERR(newh))
-		printk("Alokacja udc fail");
+
 out:
-		if (!newh || IS_ERR(newh))
-		printk("Alokacja udc fail");
 	return newh;
 }
 
@@ -970,7 +964,6 @@ static struct virtual_usb_hcd *try_get_virtual_hcd(const char *driver, int id)
 	newh = ERR_PTR(-ENOENT);
 	mutex_lock(&hcd_drv_lock);
 	list_for_each_entry(drv, &hcd_drv_list, list) {
-		printk("Name on list %s Requested: %s", drv->name, driver);
 		if (strcmp(drv->name, driver))
 			continue;
 
@@ -1061,7 +1054,6 @@ int virtual_usb_add_hcd(struct virtual_usb_hcd *h)
 
 	/* Check if probe() was successful */
 	if (!h->hs_hcd || (h->max_speed == USB_SPEED_SUPER && !h->ss_hcd)) {
-		printk("Nie ma hs hcd");
 		platform_device_del(h->hcd_dev);
 		ret = -EINVAL;
 	}
@@ -1321,8 +1313,6 @@ static int init_virtual_udc_hw(struct virtual_usb_udc *udc)
 
 	INIT_LIST_HEAD(&udc->gadget.ep_list);
 
-	printk("priv data size: %d size: %d\n", drv->ep_priv_data_size, size);
- 
 	ep = kcalloc(drv->ep_nmb, size, GFP_KERNEL);
 	if (!ep)
 		goto out;
@@ -1330,7 +1320,6 @@ static int init_virtual_udc_hw(struct virtual_usb_udc *udc)
 	udc->ep = ep;
 
 	for (i = 0; i < drv->ep_nmb && drv->ep_name[i]; ++i) {
-		printk("loop begin %i ep %p\n", i, ep);
 		ep->ep.name = drv->ep_name[i];
 		ep->ep.ops = &drv->ep_ops;
 		list_add_tail(&ep->ep.ep_list, &udc->gadget.ep_list);
@@ -1348,7 +1337,7 @@ static int init_virtual_udc_hw(struct virtual_usb_udc *udc)
 			goto err;
 		ep = (struct virtual_usb_ep *)((uint8_t *)ep + size);
 	}
-	printk("Po forze\n");
+
 	udc->gadget.ep0 = &((struct virtual_usb_ep *)udc->ep)->ep;
 	list_del_init(&udc->gadget.ep0->ep_list);
 	INIT_LIST_HEAD(&udc->fifo_req.queue);
@@ -1357,7 +1346,7 @@ static int init_virtual_udc_hw(struct virtual_usb_udc *udc)
 	udc->gadget.is_otg = 1;
 #endif
 	ret = 0;
-	printk("przed retem\n");
+
 	return ret;
 
 err:
@@ -1377,40 +1366,35 @@ static int virtual_usb_udc_probe(struct platform_device *pdev)
 	int ret;
 
 	udc = *((void **)dev_get_platdata(&pdev->dev));
-	printk("po udc\n");
+
 	drv = udc->udc_drv;
-	printk("po drv\n");
+
 
 	gadget = &udc->gadget;
-	printk("po gadget\n");
+
 	if (!gadget->name)
 		gadget->name = drv->name;
 
-	printk("po ifie\n");
+
 	gadget->max_speed = udc->max_speed;
 	gadget->dev.parent = &pdev->dev;
 	gadget->ops = &drv->g_ops;
 
-	printk("po opsach\n");
 	/* init our virtual hardware at this point */
 	ret = init_virtual_udc_hw(udc);
 	if (ret)
 		goto out;
 
-	printk("po init\n");
 	ret = drv->probe(udc);
 	if (ret)
 		goto cleanup;
 
-	printk("po probe\n");
 	ret = usb_add_gadget_udc(&pdev->dev, gadget);
 	if (ret < 0)
 		goto err_remove;
 	
-	printk("po add\n");
 	platform_set_drvdata(pdev, udc);
 	
-	printk("return\n");
 	return ret;
 
 err_remove:
