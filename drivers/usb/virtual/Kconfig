@@ -16,10 +16,6 @@ config VIRTUAL_USB_FW
        help
 	Just a framework
 
-config VIRTUAL_UDC_AND_HCD
-       depends on VIRTUAL_USB_FW
-       tristate "hcd and udc temporary in one"
-
 config VIRTUAL_USB_UDC_DRV
        tristate "Virtual UDC drv"
        depends on USB=y || (USB=m && USB_GADGET=m)
